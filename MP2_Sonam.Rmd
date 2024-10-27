@@ -1,0 +1,186 @@
+---
+title: "MP2_Sonam"
+author: "Sonam Rathod"
+date: "2024-10-24"
+output: html_document
+---
+
+# Insurance DataSet Forecast
+
+#### 1. Create Timeseries
+
+```{r}
+library(forecast)
+
+insurance <- read.csv("~/Documents/Rutgers/Course/Business Forecasting/insurance.csv")
+ins_ts <- ts(insurance$Quotes, start = c(2002,1) , end = c(2005,4), frequency = 12)
+
+plot(ins_ts, main='Monthly quotations for a US insurance company', xlab ='Year', ylab='Quotes')
+```
+
+#### 2. Verify how much history to include in your analysis. 
+```{r}
+summary(ins_ts)
+```
+
+Since the mean is close to the median, the distribution of quotes is fairly balanced with no extreme outliers that heavily affect the average. Since the data is almost evenly distributed, it is appropriate to include the entire dataset in the analysis to better capture the underlying seasonality and trend patterns. 
+
+#### 3. Hypothesize if the dataset has trend, seasonality, or both. 
+
+According to timeseries plot, data is fluctuating over the month. It is very hard to say if the dataset has trend or seasonality.
+
+#### 4. Verify using Acf
+```{r}
+acf(ins_ts, main = "ACF of Insurance Quotes")
+```
+
+There is no repeating pattern in acf, meaning data does not exhibit clear seasonality. Also, there is positive autocorrelation at lag 1 and lag 2 and then it is decreasing. There is short term trend.
+
+#### 5. Verify using decomposition
+```{r}
+insurance_decomp <- decompose(ins_ts)
+plot(insurance_decomp)
+
+```
+
+- **Trend**: Decomposition shows upward trend from mid 2002 to 2003 and after that is decreasing till 2004 and afterwards gaining momentum.
+- **Seasonality**: There is seasonality, though it not strong as patterns are not repeating consistently.
+
+Based on the decomposition, we can say that there is trend and seasonality.
+
+#### 6. Chose an accuracy measure
+
+Going with common accuracy measures Root Mean Squared Error (RMSE) as it  penalizes larger errors more heavily than smaller ones because it squares the forecast errors before averaging them.
+
+#### 7. Create a forecast model for the next 12 months. Include Naive, Average, Exponential Smoothing, HoltWinters, and Decomposition (both types). 
+```{r}
+naive_model <- naive(ins_ts, h = 12)
+plot(naive_model, main = "Naive Forecast for Insurance Quotation",  xlab ='Year', ylab='Quotes')
+``` 
+
+**Naive Model**: The simplest model, forecasting that future values will be the same as the last observed value. The forecasted line is constant and flat for the next 12 months. This model is simple and works well when no clear trend or seasonality, though it may not be very accurate for time series data with trends or seasonal patterns.
+
+```{r}
+simple_forecast <- meanf(ins_ts, h=12)
+plot(simple_forecast, main="Simple Mean Forecast",  xlab ='Year', ylab='Quotes')
+```
+
+**Simple Average Model**: This forecasts using the mean of all historical observations. It shows the flat line for future even if there is a trend or seasonality. 
+
+```{r}
+# Apply Moving Average with a window of 5
+MA5_forecast <- ma(ins_ts, order = 5)  
+
+# Plot the original time series
+plot(ins_ts, main = "Moving Average Smoothing",  xlab ='Year', ylab='Quotes', col = "black")
+
+lines(MA5_forecast, col = "blue", lwd = 2, lty = 2) 
+
+# Add a legend to differentiate the series
+legend("topleft", legend = c( "5-Month MA"),
+    col = c( "blue"), lty = 1:2, lwd = 2)
+
+```
+
+**Moving Average**: The moving average helps smooth out fluctuations in the time series to reveal the overall pattern. While there are some ups and downs, they are irregular and don’t happen at predictable intervals. No clear trend, just periods of increase and decrease without a steady rise or fall across the years.
+
+```{r}
+ets_forecasting <- ets(ins_ts)
+plot(ets_forecasting)
+summary(ets_forecasting)
+```
+
+This model would forecast future values to stay around the mean level, with minor random variations, given the lack of a trend or seasonal effect.
+
+```{r}
+hw_forecast <- hw(ins_ts, h=12)
+plot(hw_forecast, main="Holt-Winters Forecast")
+summary(hw_forecast, xlab ='Year', ylab='Quotes')
+```
+
+**Holt's Winter Model**: It is used here combines level, trend, and seasonal adjustments to make predictions. The model expects minimal changes in the level of quotes over time. The forecast shows the future quotes but with increasing uncertainty over time.
+
+**Smoothing Parameters**
+
+- Alpha = 0.9999     
+	  The smoothing parameter for the level component is nearly 1, indicating that recent values heavily affect the level estimate. This is        typical when the series has frequent fluctuations.
+	
+- Beta = 0.0272
+	    Value is much lower, meaning the trend is less responsive to changes.
+	  
+- Gamma = 1e-04 The seasonal smoothing parameter is extremely small, suggesting minimal seasonality adjustment. There was no significant seasonal            component detected.
+
+The model interprets the time series as having a relatively stable average with only minor, random fluctuations, rather than prominent, recurring seasonal patterns. Given the high alpha and low beta/gamma, the model prioritizes recent values and maintains a stable trend without adjusting for seasonality.
+
+```{r}
+ins_stl <- stl(ins_ts, s.window = "periodic")
+plot(ins_stl, main = "STL Decomposition")
+summary(ins_stl)
+```
+
+- The seasonal component accounts for around 59.5% of the variation.
+- The trend component contributes to 62.6% of the data’s variability.
+- The remainder (residuals) accounts for 50.8% of the variance.
+
+There is some seasonality and a notable trend, the high contribution of residuals suggests that random variations play a significant role in this time series.
+```{r}
+plot(ins_ts,  xlab ='Year', ylab='Quotes')
+
+lines(seasadj(ins_stl), col="Red")
+```
+
+
+```{r}
+decomposed_additive <- decompose(ins_ts, type = "additive")
+plot(decomposed_additive)
+```
+
+This decomposition tells us that your data has some slight repeating cycles, a gentle trend, but also a lot of randomness.
+```{r}
+decomposed_multiplicative <- decompose(ins_ts, type = "multiplicative")
+plot(decomposed_multiplicative)
+```
+
+This decomposition tells us that your data has some slight repeating cycles, a gentle trend, but also a lot of randomness.
+
+```{r}
+plot(ins_ts,main='Monthly quotations for a US insurance company', xlab ='Year', ylab='Quotes')
+
+# Add the forecasts to the plot
+lines(naive_model$mean, col = "blue")       
+lines(simple_forecast$mean, col = "red")
+lines(ets_forecasting$mean, col = "green")
+lines(hw_forecast$mean, col = "brown")
+lines(MA5_forecast, col = "orange")
+
+```
+
+#### 8. Show model rank with accuracy measures
+
+```{r}
+accuracy_naive <- accuracy(naive_model)
+accuracy_avg <- accuracy(simple_forecast)
+accuracy_ets <- accuracy(ets_forecasting)
+accuracy_hw <- accuracy(hw_forecast)
+
+accuracy_table <- data.frame(
+  Model = c("Naive", "Average", "ETS", "Holt-Winters"),
+  RMSE = c(accuracy_naive["Training set", "RMSE"], accuracy_avg["Training set", "RMSE"], accuracy_ets["Training set", "RMSE"], accuracy_hw["Training set", "RMSE"]))
+
+accuracy_table$Model_Rank <- rank(accuracy_table$RMSE)
+print(accuracy_table)
+```
+
+#### 9. Choose which models and how are you going to use them for Forecasting
+```{r}
+model_forecasting <- forecast(hw_forecast, h=12)
+plot(model_forecasting)
+```
+
+#### 10. Provide the forecast for the next 12 months (point and range) and explain why you feel confident with these forecasts
+```{r}
+print(model_forecasting)
+```
+
+#### Conclusion:
+The forecast doesn not show an increase or decrease, it expects quotes to stay within a fairly stable range, with some month-to-month fluctuation. This suggests a steady demand for quotes without large seasonal or trend driven changes.
